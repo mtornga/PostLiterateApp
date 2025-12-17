@@ -59,9 +59,9 @@ To empower illiterate adults with a tool that allows them to navigate the textua
 *   [ ] Capture image and send to dummy endpoint.
 
 ### Phase 2: The "Reader"
-*   [ ] Connect Google Cloud Vision API (via Proxy).
-*   [ ] Implement raw Text-to-Speech playback of OCR results.
-*   [ ] Refine "Read" button UI.
+*   [x] Connect Google Cloud Vision API (via Proxy).
+*   [x] Implement raw Text-to-Speech playback of OCR results.
+*   [x] Refine "Read" button UI.
 
 ### Phase 3: The "Interpreter"
 *   [ ] Connect LLM API (via Proxy).
