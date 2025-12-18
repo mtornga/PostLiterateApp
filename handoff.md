@@ -1,36 +1,41 @@
-# Handoff: Phase 3 Complete -> Phase 4 Start
+# Handoff: Phase 4 Complete -> Phase 5 Start
 
 **Date**: 2025-12-17
-**Status**: Phases 1, 2, & 3 Complete. Validated working on Android.
+**Status**: Phases 1-4 Complete. Immersive UI and full playback controls operational.
 
 ## Current System Status
-The app now has two core features: **Read** (OCR + Text-to-Speech) and **Explain** (OCR + Gemini AI Simplification). The UI has been overhauled with a modern dark aesthetic and glassmorphism (simulated for stability).
+The app is now "Read For Me App." It features an immersive playback mode that hides the camera and shows the captured image while the AI explains or reads the content.
 
 ### Infrastructure
 - **Firebase Project**: `post-literate-app`
 - **Functions**:
-  - `ocr`: Proxies to Google Cloud Vision API.
-  - `explain`: Uses `gemini-2.0-flash-exp` to simplify text for users with low literacy.
-- **Config**: Gemini API key is stored in Firebase functions config under `gemini.key`.
-- **Permissions**: Both functions are set to `allUsers` (public) for `Cloud Functions Invoker`.
+  - `ocr`: High-accuracy text extraction.
+  - `explain`: Uses refined `gemini-2.0-flash-exp` prompt (no introductory filler, no markdown).
+- **Frontend**:
+  - `expo-speech` refactored with a **chunking strategy** to support Pause/Resume and Seeking on both Android and iOS.
+
+### Major UI Updates (Phase 4)
+- **Transport Controls**: Full Play/Pause/Stop functionality.
+- **Speed Slider**: "Snail to Rabbit" dial (0.5x to 2.0x) for real-time speech rate adjustment.
+- **Progress Tracking**: Interactive progress bar with seeking capability.
+- **Immersive Mode**: Hides camera during playback and displays the captured image for visual context.
+- **Header**: Renamed to "Read For Me App."
 
 ### Key Files
-- `app/index.tsx`: Overhauled UI with state management for "reading" and "explaining".
-- `services/backend.ts`: Consolidated service for both OCR and AI explanation.
-- `functions/index.js`: Backend logic for OCR and Gemini integration.
-- `UIasks.md`: Tracks future UI/UX improvements (playback speed, transport controls).
+- `app/index.tsx`: Main UI logic, handles immersive state and transport controls.
+- `services/speech.ts`: Stateful speech engine with text segmentation and markdown stripping.
+- `functions/index.js`: Backend prompt engineering for "no-intro" and "no-markdown" responses.
 
 ## Recent Technical Fixes
-- **Gemini Model**: Switched to `gemini-2.0-flash-exp` after 404 errors with `gemini-1.5-flash`.
-- **Backend Auth**: Ensured `GoogleGenerativeAI` is initialized inside the function scope to correctly pick up config keys.
-- **UI Stability**: Replaced `expo-blur` with semi-transparent Views in `app/index.tsx` as a temporary fix for potential Android rendering/camera conflicts.
+- **TTS Markdown Protection**: Added a regex cleaner in `speech.ts` to ensure formatting characters are never spoken.
+- **Dignified Tone**: Prompt updated to remove conversational filler ("Okay listen up") to better respect the user's intelligence.
+- **Dependency**: Added `@react-native-community/slider` for playback and speed controls.
 
-## Next Step: Phase 4 (Polish & Deployment)
-The focus moves to UX refinements and preparation for a wider release.
+## Next Step: Phase 5 (Production Readiness)
+Focus shifts to final branding and codebase modernization.
 
 ### Tasks
-1.  **Transport Controls**: Implement pause, play, and stop (Reference: `UIasks.md`).
-2.  **Speech Speed**: Add a "Snail to Rabbit" slider (0.5x to 2.0x speed).
-3.  **Progress Tracking**: Add a visual progress bar for long text playback.
-4.  **App Icon**: Design and generate the final "Bullhorn/Brain" icon assets.
-5.  **Gemini Params**: Migrate from `functions.config()` to the newer `params` package as suggested by Firebase deprecation notices.
+1.  **App Icon**: Design and generate "Bullhorn/Brain" icon assets.
+2.  **Splash Screen**: Create a branded entry experience.
+3.  **Gemini Params**: Migrate from `functions.config()` to the newer `params` package.
+4.  **Error States Cache**: Handle offline scenarios or slow network more gracefully.

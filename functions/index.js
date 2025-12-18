@@ -98,7 +98,18 @@ exports.explain = functions.https.onRequest(async (req, res) => {
 
         const model = genAI.getGenerativeModel({ model: modelId });
 
-        const prompt = `Explain this text simply to a layperson who cannot read well. Use clear, simple language and focus on the most important information. Keep it concise. Speak directly to the user.\n\nText to explain:\n${text}`;
+        const prompt = `Task: Explain the following text simply and directly for someone with low literacy.
+        
+        RULES:
+        - Output ONLY the explanation.
+        - NO introductory or concluding sentences (e.g., NO "Here is a summary", NO "Important information follows").
+        - NO markdown formatting (no *, #, -, etc.).
+        - NO conversational filler.
+        - Use simple, direct sentences. 
+        - Keep it very concise.
+
+        TEXT to simplify:
+        ${text}`;
 
         console.log("DIAGNOSTIC (V3.0): Calling generateContent...");
         const result = await model.generateContent(prompt);
