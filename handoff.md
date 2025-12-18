@@ -1,41 +1,36 @@
-# Handoff: Phase 4 Complete -> Phase 5 Start
+# Handoff: Phase 5 Complete (Production Ready)
 
-**Date**: 2025-12-17
-**Status**: Phases 1-4 Complete. Immersive UI and full playback controls operational.
+**Date**: 2025-12-18
+**Status**: All Phases (1-5) complete. The app is branding-complete, modernized, and usage-protected.
 
-## Current System Status
-The app is now "Read For Me App." It features an immersive playback mode that hides the camera and shows the captured image while the AI explains or reads the content.
+## Phase 5 Accomplishments (Branding & Hardening)
 
-### Infrastructure
-- **Firebase Project**: `post-literate-app`
-- **Functions**:
-  - `ocr`: High-accuracy text extraction.
-  - `explain`: Uses refined `gemini-2.0-flash-exp` prompt (no introductory filler, no markdown).
-- **Frontend**:
-  - `expo-speech` refactored with a **chunking strategy** to support Pause/Resume and Seeking on both Android and iOS.
+### Branding & Identity
+- **New Name**: "Read For Me" (updated in `app.json`).
+- **Custom Assets**: 
+  - **Icon**: Modern "Bullhorn & Brain" deep navy aesthetic.
+  - **Splash Screen**: Branded navy entry.
+- **Theme**: Unified deep navy blue (`#001a33`) across the app and Android status bar.
 
-### Major UI Updates (Phase 4)
-- **Transport Controls**: Full Play/Pause/Stop functionality.
-- **Speed Slider**: "Snail to Rabbit" dial (0.5x to 2.0x) for real-time speech rate adjustment.
-- **Progress Tracking**: Interactive progress bar with seeking capability.
-- **Immersive Mode**: Hides camera during playback and displays the captured image for visual context.
-- **Header**: Renamed to "Read For Me App."
+### Backend Modernization
+- **Cloud Functions v2**: Migrated `ocr` and `explain` to the 2nd Gen HTTPS `onRequest` (faster/better scaling).
+- **Secure Config**: Replaced legacy `functions.config()` with `firebase-functions/params`.
+- **Structured Logging**: Implemented JSON-based logging via `firebase-functions/logger` for precise usage and cost tracking.
 
-### Key Files
-- `app/index.tsx`: Main UI logic, handles immersive state and transport controls.
-- `services/speech.ts`: Stateful speech engine with text segmentation and markdown stripping.
-- `functions/index.js`: Backend prompt engineering for "no-intro" and "no-markdown" responses.
+### Usage Protection & Hardening
+- **Daily Limits**: Implemented a 20-call daily request limit stored via `AsyncStorage` to prevent runaway costs during trial.
+- **Image Cleanup**: The app now automatically deletes temporary JPG captures from the device filesystem after processing or on error.
+- **Cost Reporting**: Created `scripts/usage_report.js`, a local utility that fetches latest logs and calculates estimated Google Cloud/Gemini costs.
 
-## Recent Technical Fixes
-- **TTS Markdown Protection**: Added a regex cleaner in `speech.ts` to ensure formatting characters are never spoken.
-- **Dignified Tone**: Prompt updated to remove conversational filler ("Okay listen up") to better respect the user's intelligence.
-- **Dependency**: Added `@react-native-community/slider` for playback and speed controls.
+## Current System State
+1. **Frontend**: Expo 52 project with `@react-native-async-storage/async-storage` for local state and `@react-native-community/slider` for controls.
+2. **Backend**: Firebase Cloud Functions (v2) acting as a secure proxy for Cloud Vision and Gemini AI.
+3. **Local Tools**: `node scripts/usage_report.js` provides immediate CFO-level visibility into recent usage.
 
-## Next Step: Phase 5 (Production Readiness)
-Focus shifts to final branding and codebase modernization.
+## Repositories & Deployment
+- **Git Branch**: `main` (Latest push: Phase 5 Complete).
+- **Functions**: Deployed to `us-central1`.
 
-### Tasks
-1.  **App Icon**: Design and generate "Bullhorn/Brain" icon assets.
-2.  **Splash Screen**: Create a branded entry experience.
-3.  **Gemini Params**: Migrate from `functions.config()` to the newer `params` package.
-4.  **Error States Cache**: Handle offline scenarios or slow network more gracefully.
+## Future Considerations
+- **Scaling**: For >100 users, migrate from log-parsing to **BigQuery Billing Exports** as outlined in `reporting_guide.md`.
+- **Accessibility**: Further testing with native TalkBack/VoiceOver to supplement our internal TTS.

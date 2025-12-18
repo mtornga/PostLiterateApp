@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as FileSystem from 'expo-file-system';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
@@ -75,6 +76,7 @@ export default function App() {
     async function processImage(action: 'read' | 'explain') {
         console.log(`Processing image for action: ${action}`);
         if (cameraRef.current && mode === 'idle') {
+            let photoUri: string | null = null;
             try {
                 setMode(action === 'read' ? 'reading' : 'explaining');
                 stop();
@@ -85,6 +87,7 @@ export default function App() {
                 });
 
                 if (photo?.uri) {
+                    photoUri = photo.uri;
                     console.log('Picture taken:', photo.uri);
                     setCapturedImage(photo.uri);
                     const text = await extractText(photo.uri);
@@ -93,6 +96,11 @@ export default function App() {
                     if (!text || text.trim().length === 0) {
                         speak("I didn't see any text.");
                         setMode('idle');
+                        // Cleanup since we won't show it
+                        if (photoUri) {
+                            await FileSystem.deleteAsync(photoUri, { idempotent: true });
+                            setCapturedImage(null);
+                        }
                         return;
                     }
 
@@ -113,9 +121,18 @@ export default function App() {
                 } else {
                     console.warn('No photo URI returned');
                 }
-            } catch (e) {
+            } catch (e: any) {
                 console.error('Failed to process:', e);
-                speakError();
+                if (e.message === 'DAILY_LIMIT_REACHED') {
+                    speak("You have used all your requests for today. Please come back tomorrow.");
+                } else {
+                    speakError();
+                }
+                // Cleanup on error
+                if (photoUri) {
+                    await FileSystem.deleteAsync(photoUri, { idempotent: true });
+                    setCapturedImage(null);
+                }
             } finally {
                 setMode(prevMode => (prevMode === 'speaking' ? 'speaking' : 'idle'));
             }
@@ -134,13 +151,20 @@ export default function App() {
         }
     };
 
-    const handleStop = () => {
+    const handleStop = async () => {
         stop();
         setIsPlaying(false);
         setMode('idle');
         setProgress(0);
         setActiveText('');
-        setCapturedImage(null);
+        if (capturedImage) {
+            try {
+                await FileSystem.deleteAsync(capturedImage, { idempotent: true });
+            } catch (e) {
+                console.warn('Failed to delete image:', e);
+            }
+            setCapturedImage(null);
+        }
     };
 
     const handleRateChange = (newRate: number) => {
