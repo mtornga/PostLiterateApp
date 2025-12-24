@@ -12,7 +12,7 @@ interface AudioSegment {
 let segments: AudioSegment[] = [];
 let currentSegmentIndex = -1;
 let isPaused = false;
-let playbackRate = 0.9;
+let playbackRate = 1.0;
 let onProgressCallback: ((index: number, total: number) => void) | null = null;
 let onDoneCallback: (() => void) | null = null;
 let isLoadingSegments = false;

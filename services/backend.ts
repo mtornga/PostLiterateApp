@@ -4,7 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 const BASE_URL = 'https://us-central1-post-literate-app.cloudfunctions.net';
 const USAGE_KEY = 'daily_usage_counter';
 const DATE_KEY = 'last_usage_date';
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = 60;
 
 async function checkAndIncrementUsage(): Promise<void> {
     const today = new Date().toISOString().split('T')[0];

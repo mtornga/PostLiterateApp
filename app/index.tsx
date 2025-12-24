@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { Audio } from 'expo-av';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
@@ -343,11 +343,11 @@ export default function App() {
                             {mode === 'reading' ? (
                                 <ActivityIndicator size="large" color="#4ecca3" />
                             ) : (
-                                <MaterialCommunityIcons name="book-account" size={56} color="#fff" />
+                                <MaterialCommunityIcons name="clipboard-text-search" size={56} color="#fff" />
                             )}
                         </TouchableOpacity>
 
-                        {/* Explain Button - Camera with brain icon */}
+                        {/* Explain Button - Brain icon */}
                         <TouchableOpacity
                             style={[styles.actionButton, mode === 'explaining' && styles.activeButton]}
                             onPress={() => processImage('explain')}
@@ -356,7 +356,7 @@ export default function App() {
                             {mode === 'explaining' ? (
                                 <ActivityIndicator size="large" color="#4ecca3" />
                             ) : (
-                                <MaterialCommunityIcons name="lightbulb-on" size={56} color="#fff" />
+                                <MaterialCommunityIcons name="brain" size={56} color="#fff" />
                             )}
                         </TouchableOpacity>
                     </View>
