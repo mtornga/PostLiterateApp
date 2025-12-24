@@ -1,36 +1,68 @@
-# Handoff: Phase 5 Complete (Production Ready)
+# Handoff: Phase 6 Complete (Cloud TTS & UI Polish)
 
-**Date**: 2025-12-18
-**Status**: All Phases (1-5) complete. The app is branding-complete, modernized, and usage-protected.
+**Date**: 2025-12-24
+**Status**: All Phases (1-6) complete. App is production-ready with Cloud TTS, refined icons, and playback controls.
 
-## Phase 5 Accomplishments (Branding & Hardening)
+## Phase 6 Accomplishments (Cloud TTS & UI Polish)
 
-### Branding & Identity
-- **New Name**: "Read For Me" (updated in `app.json`).
-- **Custom Assets**: 
-  - **Icon**: Modern "Bullhorn & Brain" deep navy aesthetic.
-  - **Splash Screen**: Branded navy entry.
-- **Theme**: Unified deep navy blue (`#001a33`) across the app and Android status bar.
+### Cloud Text-to-Speech Integration
+- **Backend TTS Endpoint**: New `/tts` Firebase Cloud Function using Google Cloud Text-to-Speech API.
+- **Voice Config**: `en-US-Neural2-J` male voice at 0.95x speaking rate for clarity.
+- **Sentence-by-Sentence Streaming**: The `services/speech.ts` module segments text into sentences and streams audio progressively for faster perceived response.
+- **Pre-fetching**: While playing current sentence, the next sentence's audio is pre-loaded for seamless playback.
 
-### Backend Modernization
-- **Cloud Functions v2**: Migrated `ocr` and `explain` to the 2nd Gen HTTPS `onRequest` (faster/better scaling).
-- **Secure Config**: Replaced legacy `functions.config()` with `firebase-functions/params`.
-- **Structured Logging**: Implemented JSON-based logging via `firebase-functions/logger` for precise usage and cost tracking.
+### Playback Controls
+- **Transport Controls**: Play/Pause, Stop buttons with intuitive layout.
+- **Progress Scrubbing**: Slider to seek through sentences.
+- **Speed Control**: Adjustable playback rate from 0.5x to 2.0x with snail/rabbit icons as visual indicators.
+- **Explanation Length Selector**: Short/Medium/Long options that re-trigger the Gemini AI with the original OCR text.
 
-### Usage Protection & Hardening
-- **Daily Limits**: Implemented a 20-call daily request limit stored via `AsyncStorage` to prevent runaway costs during trial.
-- **Image Cleanup**: The app now automatically deletes temporary JPG captures from the device filesystem after processing or on error.
-- **Cost Reporting**: Created `scripts/usage_report.js`, a local utility that fetches latest logs and calculates estimated Google Cloud/Gemini costs.
+### Icon Refresh
+- **Read Button**: Changed to `book-account` icon (person with book) - cleaner single-icon design.
+- **Explain Button**: Changed to `lightbulb-on` icon (insight/understanding metaphor).
+- **Removed**: Camera overlay approach in favor of larger, clearer single icons.
 
-## Current System State
-1. **Frontend**: Expo 52 project with `@react-native-async-storage/async-storage` for local state and `@react-native-community/slider` for controls.
-2. **Backend**: Firebase Cloud Functions (v2) acting as a secure proxy for Cloud Vision and Gemini AI.
-3. **Local Tools**: `node scripts/usage_report.js` provides immediate CFO-level visibility into recent usage.
+### Store Preparation
+- **Privacy Policy**: `PRIVACY_POLICY.md` drafted for Google Play submission.
+- **Store Assets Checklist**: `STORE_ASSETS.md` created with all required assets and EAS build workflow.
 
-## Repositories & Deployment
-- **Git Branch**: `main` (Latest push: Phase 5 Complete).
-- **Functions**: Deployed to `us-central1`.
+## Current Architecture
 
-## Future Considerations
-- **Scaling**: For >100 users, migrate from log-parsing to **BigQuery Billing Exports** as outlined in `reporting_guide.md`.
-- **Accessibility**: Further testing with native TalkBack/VoiceOver to supplement our internal TTS.
+```
+Frontend (Expo 54 / React Native)
+├── app/index.tsx          # Main screen with camera, playback controls
+├── services/backend.ts    # OCR & Explain API calls with usage limits
+└── services/speech.ts     # Cloud TTS with sentence segmentation
+
+Backend (Firebase Cloud Functions v2)
+├── /ocr                   # Google Cloud Vision proxy
+├── /explain               # Gemini 2.0 Flash for text simplification
+└── /tts                   # Google Cloud Text-to-Speech proxy
+```
+
+## Key Dependencies
+- `expo-av`: Audio playback for Cloud TTS
+- `expo-camera`: Image capture
+- `@react-native-community/slider`: Playback controls
+- `@react-native-async-storage/async-storage`: Daily usage limits
+
+## Deployment
+- **Git Branch**: `main`
+- **Functions Region**: `us-central1`
+- **Daily Limit**: 20 requests/day (configurable in `services/backend.ts`)
+
+## Files Changed This Session
+- `app/index.tsx` - Icon updates, playback controls
+- `services/speech.ts` - Full Cloud TTS implementation
+- `services/backend.ts` - Explanation length parameter
+- `functions/index.js` - TTS endpoint, explanation length support
+- `functions/package.json` - Added `@google-cloud/text-to-speech`
+- `PRIVACY_POLICY.md` - New file for store submission
+- `STORE_ASSETS.md` - New file with submission checklist
+
+## Next Steps
+1. **Test on Device**: Verify TTS playback on physical iOS/Android devices.
+2. **App Store Assets**: Create 512x512 icon, 1024x500 feature graphic, screenshots.
+3. **Host Privacy Policy**: Deploy `PRIVACY_POLICY.md` to a public URL.
+4. **EAS Build**: Run `eas build -p android --profile production` for AAB file.
+5. **Submit to Google Play**: Follow `STORE_ASSETS.md` checklist.

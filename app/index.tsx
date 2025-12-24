@@ -1,12 +1,13 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
+import { Audio } from 'expo-av';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as FileSystem from 'expo-file-system';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { explainText, extractText } from '../services/backend';
+import { ExplanationLength, explainText, extractText } from '../services/backend';
 import {
     pause,
     resume,
@@ -22,6 +23,7 @@ import {
 const { width } = Dimensions.get('window');
 
 type Mode = 'idle' | 'reading' | 'explaining' | 'speaking';
+type AudioOutput = 'speaker' | 'headphones' | 'bluetooth';
 
 export default function App() {
     console.log('Rendering App component');
@@ -30,23 +32,47 @@ export default function App() {
     const [mode, setMode] = useState<Mode>('idle');
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [rate, setRate] = useState(0.9);
+    const [rate, setRate] = useState(1.0);
     const [activeText, setActiveText] = useState('');
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
+    const [explanationLength, setExplanationLength] = useState<ExplanationLength>('medium');
+    const [audioOutput, setAudioOutput] = useState<AudioOutput>('speaker');
+    const [audioDeviceName, setAudioDeviceName] = useState<string | null>(null);
+    const [isExplainMode, setIsExplainMode] = useState(false);
+    const [originalOcrText, setOriginalOcrText] = useState<string>('');
+
+    // Check audio output on mount and when app becomes active
+    const checkAudioOutput = async () => {
+        try {
+            // On iOS/Android, we can check if headphones are connected
+            // This is a simplified check - expo-av doesn't expose detailed routing info
+            // We'll use a heuristic based on audio session
+            const status = await Audio.getPermissionsAsync();
+            if (status.granted) {
+                // Unfortunately expo-av doesn't expose audio route info directly
+                // For now, we default to speaker and would need native modules for accurate detection
+                // This is a placeholder that could be enhanced with expo-device or native code
+                setAudioOutput('speaker');
+                setAudioDeviceName(null);
+            }
+        } catch (error) {
+            console.log('Could not check audio output:', error);
+        }
+    };
 
     useEffect(() => {
         console.log('Camera Permission status:', permission?.status);
+
+        checkAudioOutput();
 
         setOnProgress((index, total) => {
             setProgress(index / (total - 1 || 1));
         });
 
         setOnDone(() => {
+            // Don't auto-return to main screen - just pause at the end
             setIsPlaying(false);
-            setMode('idle');
-            setProgress(0);
-            setActiveText('');
-            setCapturedImage(null);
+            setProgress(1);
         });
     }, [permission]);
 
@@ -79,7 +105,7 @@ export default function App() {
             let photoUri: string | null = null;
             try {
                 setMode(action === 'read' ? 'reading' : 'explaining');
-                stop();
+                await stop();
 
                 console.log('Taking picture...');
                 const photo = await cameraRef.current.takePictureAsync({
@@ -94,7 +120,7 @@ export default function App() {
                     console.log('Text extracted:', text?.substring(0, 50));
 
                     if (!text || text.trim().length === 0) {
-                        speak("I didn't see any text.");
+                        await speak("I didn't see any text.");
                         setMode('idle');
                         // Cleanup since we won't show it
                         if (photoUri) {
@@ -110,13 +136,17 @@ export default function App() {
 
                     if (action === 'read') {
                         setActiveText(text);
-                        speak(text);
+                        setIsExplainMode(false);
+                        setOriginalOcrText('');
+                        await speak(text);
                     } else {
                         console.log('Calling explain service...');
-                        const explanation = await explainText(text);
+                        setIsExplainMode(true);
+                        setOriginalOcrText(text); // Store for re-explain with different length
+                        const explanation = await explainText(text, explanationLength);
                         console.log('Explanation received:', explanation?.substring(0, 50));
                         setActiveText(explanation);
-                        speak(explanation);
+                        await speak(explanation);
                     }
                 } else {
                     console.warn('No photo URI returned');
@@ -124,9 +154,9 @@ export default function App() {
             } catch (e: any) {
                 console.error('Failed to process:', e);
                 if (e.message === 'DAILY_LIMIT_REACHED') {
-                    speak("You have used all your requests for today. Please come back tomorrow.");
+                    await speak("You have used all your requests for today. Please come back tomorrow.");
                 } else {
-                    speakError();
+                    await speakError();
                 }
                 // Cleanup on error
                 if (photoUri) {
@@ -141,22 +171,24 @@ export default function App() {
         }
     }
 
-    const togglePlayback = () => {
+    const togglePlayback = async () => {
         if (isPlaying) {
-            pause();
+            await pause();
             setIsPlaying(false);
         } else {
-            resume();
+            await resume();
             setIsPlaying(true);
         }
     };
 
     const handleStop = async () => {
-        stop();
+        await stop();
         setIsPlaying(false);
         setMode('idle');
         setProgress(0);
         setActiveText('');
+        setIsExplainMode(false);
+        setOriginalOcrText('');
         if (capturedImage) {
             try {
                 await FileSystem.deleteAsync(capturedImage, { idempotent: true });
@@ -172,9 +204,57 @@ export default function App() {
         setPlaybackRate(newRate);
     };
 
-    const handleSeek = (value: number) => {
+    const handleSeek = async (value: number) => {
         setProgress(value);
-        seek(value);
+        await seek(value);
+    };
+
+    const handleAudioIndicatorPress = async () => {
+        let message = "Your phone is using the speaker.";
+        if (audioOutput === 'headphones') {
+            message = audioDeviceName
+                ? `Your phone is using ${audioDeviceName}.`
+                : "Your phone is using headphones.";
+        } else if (audioOutput === 'bluetooth') {
+            message = audioDeviceName
+                ? `Your phone is using ${audioDeviceName}.`
+                : "Your phone is using a Bluetooth device.";
+        }
+        await speak(message);
+    };
+
+    const handleLengthChange = async (newLength: ExplanationLength) => {
+        if (newLength === explanationLength) return;
+
+        setExplanationLength(newLength);
+
+        // If we have original OCR text, re-explain with new length
+        if (isExplainMode && originalOcrText) {
+            await stop();
+            setIsPlaying(true);
+            setProgress(0);
+
+            try {
+                console.log('Re-explaining with length:', newLength);
+                const explanation = await explainText(originalOcrText, newLength);
+                setActiveText(explanation);
+                await speak(explanation);
+            } catch (error) {
+                console.error('Failed to re-explain:', error);
+                await speakError();
+            }
+        }
+    };
+
+    const getAudioIcon = (): "volume-high" | "headphones" | "bluetooth-audio" => {
+        switch (audioOutput) {
+            case 'headphones':
+                return 'headphones';
+            case 'bluetooth':
+                return 'bluetooth-audio';
+            default:
+                return 'volume-high';
+        }
     };
 
     return (
@@ -254,7 +334,7 @@ export default function App() {
                     </View>
                 ) : (
                     <View style={styles.buttonRow}>
-                        {/* Read Button */}
+                        {/* Read Button - Camera with text/speech icon */}
                         <TouchableOpacity
                             style={[styles.actionButton, mode === 'reading' && styles.activeButton]}
                             onPress={() => processImage('read')}
@@ -263,12 +343,11 @@ export default function App() {
                             {mode === 'reading' ? (
                                 <ActivityIndicator size="large" color="#4ecca3" />
                             ) : (
-                                <MaterialCommunityIcons name="bullhorn" size={40} color="#fff" />
+                                <MaterialCommunityIcons name="book-account" size={56} color="#fff" />
                             )}
-                            <Text style={styles.buttonText}>Read</Text>
                         </TouchableOpacity>
 
-                        {/* Explain Button */}
+                        {/* Explain Button - Camera with brain icon */}
                         <TouchableOpacity
                             style={[styles.actionButton, mode === 'explaining' && styles.activeButton]}
                             onPress={() => processImage('explain')}
@@ -277,27 +356,78 @@ export default function App() {
                             {mode === 'explaining' ? (
                                 <ActivityIndicator size="large" color="#4ecca3" />
                             ) : (
-                                <MaterialCommunityIcons name="brain" size={40} color="#fff" />
+                                <MaterialCommunityIcons name="lightbulb-on" size={56} color="#fff" />
                             )}
-                            <Text style={styles.buttonText}>Explain</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
-                {/* Status Indicator */}
+                {/* Status Indicator - now icon-only */}
                 {(mode === 'reading' || mode === 'explaining') && (
-                    <Text style={styles.statusText}>
-                        {mode === 'reading' ? 'Scanning text...' : 'Understanding...'}
-                    </Text>
+                    <View style={styles.statusIndicator}>
+                        <ActivityIndicator size="small" color="#4ecca3" />
+                    </View>
                 )}
             </View>
 
-            {/* Top Header */}
-            <View style={styles.header}>
-                <View style={[styles.headerBlur, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
-                    <Text style={styles.headerTitle}>Read For Me App</Text>
+            {/* Audio Output Indicator - Top Right */}
+            {mode === 'idle' && (
+                <TouchableOpacity
+                    style={styles.audioIndicator}
+                    onPress={handleAudioIndicatorPress}
+                >
+                    <MaterialCommunityIcons
+                        name={getAudioIcon()}
+                        size={28}
+                        color={audioOutput === 'speaker' ? '#fff' : '#4ecca3'}
+                    />
+                </TouchableOpacity>
+            )}
+
+            {/* Length Selector - Only shown during explain playback */}
+            {mode === 'speaking' && isExplainMode && (
+                <View style={styles.lengthSelector}>
+                    <TouchableOpacity
+                        style={[
+                            styles.lengthButton,
+                            explanationLength === 'short' && styles.lengthButtonActive
+                        ]}
+                        onPress={() => handleLengthChange('short')}
+                    >
+                        <MaterialCommunityIcons
+                            name="text-short"
+                            size={24}
+                            color={explanationLength === 'short' ? '#fff' : '#aaa'}
+                        />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.lengthButton,
+                            explanationLength === 'medium' && styles.lengthButtonActive
+                        ]}
+                        onPress={() => handleLengthChange('medium')}
+                    >
+                        <MaterialCommunityIcons
+                            name="text"
+                            size={24}
+                            color={explanationLength === 'medium' ? '#fff' : '#aaa'}
+                        />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.lengthButton,
+                            explanationLength === 'long' && styles.lengthButtonActive
+                        ]}
+                        onPress={() => handleLengthChange('long')}
+                    >
+                        <MaterialCommunityIcons
+                            name="text-long"
+                            size={24}
+                            color={explanationLength === 'long' ? '#fff' : '#aaa'}
+                        />
+                    </TouchableOpacity>
                 </View>
-            </View>
+            )}
         </View>
     );
 }
@@ -384,18 +514,15 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(78, 204, 163, 0.2)',
         borderColor: '#4ecca3',
     },
-    buttonText: {
-        color: '#fff',
-        marginTop: 10,
-        fontSize: 16,
-        fontWeight: '600',
+    buttonIconContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    statusText: {
-        color: '#4ecca3',
+    buttonIconOverlay: {
+        marginTop: -5,
+    },
+    statusIndicator: {
         marginTop: 20,
-        fontSize: 14,
-        fontWeight: '500',
-        letterSpacing: 1,
     },
     playbackControls: {
         width: '100%',
@@ -454,22 +581,38 @@ const styles = StyleSheet.create({
         width: '100%',
         paddingHorizontal: 10,
     },
-    header: {
+    audioIndicator: {
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 100,
-        justifyContent: 'flex-end',
-    },
-    headerBlur: {
-        paddingVertical: 15,
+        top: 60,
+        right: 20,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
         alignItems: 'center',
     },
-    headerTitle: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: 'bold',
-        letterSpacing: 2,
+    lengthSelector: {
+        position: 'absolute',
+        top: 60,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 15,
+    },
+    lengthButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    lengthButtonActive: {
+        backgroundColor: '#4ecca3',
+        borderColor: '#4ecca3',
     },
 });

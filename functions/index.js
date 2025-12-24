@@ -3,12 +3,16 @@ const { logger } = require("firebase-functions");
 const { defineString } = require("firebase-functions/params");
 const vision = require("@google-cloud/vision");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const textToSpeech = require("@google-cloud/text-to-speech");
 
 // Define Params (modern replacement for functions.config())
 const geminiKey = defineString("GEMINI_API_KEY");
 
 // Initialize Vision Client
 const client = new vision.ImageAnnotatorClient();
+
+// Initialize TTS Client
+const ttsClient = new textToSpeech.TextToSpeechClient();
 
 // Note: genAI is initialized inside the request handler or lazily
 // because geminiKey.value() can only be called within a function or after it's defined.
@@ -61,13 +65,13 @@ exports.ocr = onRequest({ cors: true }, async (req, res) => {
 
 /**
  * Explains a given text simply using Gemini.
- * Expects a POST request with JSON body: { "text": "STRING" }
+ * Expects a POST request with JSON body: { "text": "STRING", "length": "short" | "medium" | "long" }
  */
 exports.explain = onRequest({ cors: true }, async (req, res) => {
     logger.info("Explain Request Started", { method: req.method });
 
     try {
-        const { text } = req.body;
+        const { text, length = "medium" } = req.body;
 
         if (!text) {
             logger.error("Explain Error: Missing text field");
@@ -86,15 +90,22 @@ exports.explain = onRequest({ cors: true }, async (req, res) => {
         const modelId = "gemini-2.0-flash-exp";
         const model = genAI.getGenerativeModel({ model: modelId });
 
+        const lengthInstructions = {
+            short: "Give a very brief 1-2 sentence summary. Just state what this document is and its main point.",
+            medium: "Give a clear explanation in 3-5 sentences. Cover the key points someone needs to know.",
+            long: "Give a thorough explanation covering all important details. Be comprehensive but still use simple language."
+        };
+
         const prompt = `Task: Explain the following text simply and directly for someone with low literacy.
-        
+
+        LENGTH: ${lengthInstructions[length] || lengthInstructions.medium}
+
         RULES:
         - Output ONLY the explanation.
         - NO introductory or concluding sentences (e.g., NO "Here is a summary", NO "Important information follows").
         - NO markdown formatting (no *, #, -, etc.).
         - NO conversational filler.
-        - Use simple, direct sentences. 
-        - Keep it very concise.
+        - Use simple, direct sentences.
 
         TEXT to simplify:
         ${text}`;
@@ -120,5 +131,53 @@ exports.explain = onRequest({ cors: true }, async (req, res) => {
         } else {
             res.status(500).send({ error: error.message });
         }
+    }
+});
+
+/**
+ * Converts text to speech using Google Cloud TTS.
+ * Expects a POST request with JSON body: { "text": "STRING" }
+ * Returns base64-encoded MP3 audio.
+ */
+exports.tts = onRequest({ cors: true }, async (req, res) => {
+    logger.info("TTS Request Started", { method: req.method });
+
+    try {
+        const { text } = req.body;
+
+        if (!text) {
+            logger.error("TTS Error: Missing text field");
+            res.status(400).send({ error: "Missing 'text' field in request body." });
+            return;
+        }
+
+        const request = {
+            input: { text },
+            voice: {
+                languageCode: "en-US",
+                name: "en-US-Neural2-J", // Natural male voice
+                ssmlGender: "MALE",
+            },
+            audioConfig: {
+                audioEncoding: "MP3",
+                speakingRate: 0.95, // Slightly slower for clarity
+                pitch: 0,
+            },
+        };
+
+        logger.info("Calling Google Cloud TTS", { textLength: text.length });
+        const [response] = await ttsClient.synthesizeSpeech(request);
+
+        logger.info("TTS Completed Successfully", {
+            audioBytes: response.audioContent.length
+        });
+
+        res.status(200).send({
+            audio: response.audioContent.toString("base64"),
+            format: "mp3"
+        });
+    } catch (error) {
+        logger.error("TTS Error:", error);
+        res.status(500).send({ error: error.message });
     }
 });

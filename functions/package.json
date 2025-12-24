@@ -13,6 +13,7 @@
     },
     "main": "index.js",
     "dependencies": {
+        "@google-cloud/text-to-speech": "^5.5.0",
         "@google-cloud/vision": "^5.3.4",
         "@google/generative-ai": "^0.24.1",
         "firebase-admin": "^13.6.0",

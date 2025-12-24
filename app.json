@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Read For Me",
-    "slug": "ReadForMe",
+    "name": "Read This For Me",
+    "slug": "ReadThisForMe",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -14,6 +14,7 @@
     },
     "android": {
       "package": "com.marktornga.readforme",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e",
         "foregroundImage": "./assets/images/icon.png"

@@ -53,7 +53,9 @@ export async function extractText(imageUri: string): Promise<string> {
     }
 }
 
-export async function explainText(text: string): Promise<string> {
+export type ExplanationLength = 'short' | 'medium' | 'long';
+
+export async function explainText(text: string, length: ExplanationLength = 'medium'): Promise<string> {
     try {
         await checkAndIncrementUsage();
 
@@ -62,7 +64,7 @@ export async function explainText(text: string): Promise<string> {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ text }),
+            body: JSON.stringify({ text, length }),
         });
 
         if (!response.ok) {
