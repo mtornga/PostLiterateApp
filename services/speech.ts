@@ -301,5 +301,9 @@ export async function seek(progress: number): Promise<void> {
 }
 
 export async function speakError(): Promise<void> {
-    await speak("I couldn't read that. Please try again.");
+    await speak("Something went wrong. Please try again.");
+}
+
+export async function speakNoText(): Promise<void> {
+    await speak("I didn't find any words in the picture. Point the camera at something with words on it and try again.");
 }

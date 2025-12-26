@@ -7,6 +7,14 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withSequence,
+    withTiming,
+    cancelAnimation,
+} from 'react-native-reanimated';
 import { ExplanationLength, explainText, extractText } from '../services/backend';
 import {
     pause,
@@ -17,6 +25,7 @@ import {
     setPlaybackRate,
     speak,
     speakError,
+    speakNoText,
     stop
 } from '../services/speech';
 
@@ -40,6 +49,106 @@ export default function App() {
     const [audioDeviceName, setAudioDeviceName] = useState<string | null>(null);
     const [isExplainMode, setIsExplainMode] = useState(false);
     const [originalOcrText, setOriginalOcrText] = useState<string>('');
+
+    // Animated sound wave indicator - must be before any conditional returns
+    const wave1Opacity = useSharedValue(0.3);
+    const wave2Opacity = useSharedValue(0.3);
+    const wave3Opacity = useSharedValue(0.3);
+    const wave1Scale = useSharedValue(0.8);
+    const wave2Scale = useSharedValue(0.8);
+    const wave3Scale = useSharedValue(0.8);
+
+    const wave1Style = useAnimatedStyle(() => ({
+        opacity: wave1Opacity.value,
+        transform: [{ scale: wave1Scale.value }],
+    }));
+
+    const wave2Style = useAnimatedStyle(() => ({
+        opacity: wave2Opacity.value,
+        transform: [{ scale: wave2Scale.value }],
+    }));
+
+    const wave3Style = useAnimatedStyle(() => ({
+        opacity: wave3Opacity.value,
+        transform: [{ scale: wave3Scale.value }],
+    }));
+
+    // Animation effect for sound waves - must be before any conditional returns
+    useEffect(() => {
+        if (isPlaying) {
+            // Staggered pulsing animation for each wave
+            wave1Opacity.value = withRepeat(
+                withSequence(
+                    withTiming(1, { duration: 400 }),
+                    withTiming(0.3, { duration: 400 })
+                ),
+                -1,
+                false
+            );
+            wave1Scale.value = withRepeat(
+                withSequence(
+                    withTiming(1, { duration: 400 }),
+                    withTiming(0.8, { duration: 400 })
+                ),
+                -1,
+                false
+            );
+
+            // Wave 2 starts slightly delayed
+            setTimeout(() => {
+                wave2Opacity.value = withRepeat(
+                    withSequence(
+                        withTiming(1, { duration: 400 }),
+                        withTiming(0.3, { duration: 400 })
+                    ),
+                    -1,
+                    false
+                );
+                wave2Scale.value = withRepeat(
+                    withSequence(
+                        withTiming(1, { duration: 400 }),
+                        withTiming(0.8, { duration: 400 })
+                    ),
+                    -1,
+                    false
+                );
+            }, 150);
+
+            // Wave 3 starts even more delayed
+            setTimeout(() => {
+                wave3Opacity.value = withRepeat(
+                    withSequence(
+                        withTiming(1, { duration: 400 }),
+                        withTiming(0.3, { duration: 400 })
+                    ),
+                    -1,
+                    false
+                );
+                wave3Scale.value = withRepeat(
+                    withSequence(
+                        withTiming(1, { duration: 400 }),
+                        withTiming(0.8, { duration: 400 })
+                    ),
+                    -1,
+                    false
+                );
+            }, 300);
+        } else {
+            // Stop animations when paused
+            cancelAnimation(wave1Opacity);
+            cancelAnimation(wave2Opacity);
+            cancelAnimation(wave3Opacity);
+            cancelAnimation(wave1Scale);
+            cancelAnimation(wave2Scale);
+            cancelAnimation(wave3Scale);
+            wave1Opacity.value = withTiming(0.3, { duration: 200 });
+            wave2Opacity.value = withTiming(0.3, { duration: 200 });
+            wave3Opacity.value = withTiming(0.3, { duration: 200 });
+            wave1Scale.value = withTiming(0.8, { duration: 200 });
+            wave2Scale.value = withTiming(0.8, { duration: 200 });
+            wave3Scale.value = withTiming(0.8, { duration: 200 });
+        }
+    }, [isPlaying]);
 
     // Check audio output on mount and when app becomes active
     const checkAudioOutput = async () => {
@@ -120,7 +229,7 @@ export default function App() {
                     console.log('Text extracted:', text?.substring(0, 50));
 
                     if (!text || text.trim().length === 0) {
-                        await speak("I didn't see any text.");
+                        await speakNoText();
                         setMode('idle');
                         // Cleanup since we won't show it
                         if (photoUri) {
@@ -223,6 +332,12 @@ export default function App() {
         await speak(message);
     };
 
+    const handleInfoPress = async () => {
+        setIsPlaying(true);
+        await speak("Point your camera at any words. Tap the clipboard to hear them spoken aloud. Tap the brain to hear a quick explanation. This app respects your privacy and forgets everything after it speaks.");
+        // Note: setIsPlaying(false) is handled by the onDone callback set in useEffect
+    };
+
     const handleLengthChange = async (newLength: ExplanationLength) => {
         if (newLength === explanationLength) return;
 
@@ -261,6 +376,18 @@ export default function App() {
         <View style={styles.container}>
             {mode === 'speaking' ? (
                 <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.contentArea}>
+                    {/* Animated Sound Wave Indicator */}
+                    <View style={styles.soundWaveContainer}>
+                        <View style={styles.speakerIconContainer}>
+                            <MaterialCommunityIcons name="volume-high" size={40} color="#4ecca3" />
+                        </View>
+                        <View style={styles.wavesContainer}>
+                            <Animated.View style={[styles.soundWave, styles.wave1, wave1Style]} />
+                            <Animated.View style={[styles.soundWave, styles.wave2, wave2Style]} />
+                            <Animated.View style={[styles.soundWave, styles.wave3, wave3Style]} />
+                        </View>
+                    </View>
+
                     <View style={styles.imagePreviewContainer}>
                         {capturedImage && (
                             <Image
@@ -278,6 +405,22 @@ export default function App() {
                     ref={cameraRef}
                     onMountError={(err) => console.error('Camera mount error:', err)}
                 />
+            )}
+
+            {/* Animated Speaker Overlay for Info Playback on Idle Screen */}
+            {mode === 'idle' && isPlaying && (
+                <View style={styles.idleSpeakerOverlay}>
+                    <View style={styles.soundWaveContainer}>
+                        <View style={styles.speakerIconContainer}>
+                            <MaterialCommunityIcons name="volume-high" size={40} color="#4ecca3" />
+                        </View>
+                        <View style={styles.wavesContainer}>
+                            <Animated.View style={[styles.soundWave, styles.wave1, wave1Style]} />
+                            <Animated.View style={[styles.soundWave, styles.wave2, wave2Style]} />
+                            <Animated.View style={[styles.soundWave, styles.wave3, wave3Style]} />
+                        </View>
+                    </View>
+                </View>
             )}
 
             {/* Controls Overlay - Using semi-transparent View instead of BlurView for stability */}
@@ -369,6 +512,20 @@ export default function App() {
                     </View>
                 )}
             </View>
+
+            {/* Info Button - Top Left */}
+            {mode === 'idle' && (
+                <TouchableOpacity
+                    style={styles.infoButton}
+                    onPress={handleInfoPress}
+                >
+                    <MaterialCommunityIcons
+                        name="help-circle-outline"
+                        size={28}
+                        color="#fff"
+                    />
+                </TouchableOpacity>
+            )}
 
             {/* Audio Output Indicator - Top Right */}
             {mode === 'idle' && (
@@ -592,6 +749,17 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    infoButton: {
+        position: 'absolute',
+        top: 60,
+        left: 20,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     lengthSelector: {
         position: 'absolute',
         top: 60,
@@ -614,5 +782,45 @@ const styles = StyleSheet.create({
     lengthButtonActive: {
         backgroundColor: '#4ecca3',
         borderColor: '#4ecca3',
+    },
+    idleSpeakerOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    },
+    soundWaveContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 60,
+        marginBottom: 10,
+    },
+    speakerIconContainer: {
+        zIndex: 1,
+    },
+    wavesContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: -5,
+    },
+    soundWave: {
+        width: 4,
+        backgroundColor: '#4ecca3',
+        borderRadius: 2,
+        marginHorizontal: 3,
+    },
+    wave1: {
+        height: 20,
+    },
+    wave2: {
+        height: 35,
+    },
+    wave3: {
+        height: 25,
     },
 });
