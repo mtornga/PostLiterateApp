@@ -1,50 +1,135 @@
-# Welcome to your Expo app 👋
+# Read This For Me
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A privacy-first mobile app that reads text aloud using AI and OCR, helping adults navigate everyday reading challenges independently.
 
-## Get started
+**Point. Snap. Listen.**
 
-1. Install dependencies
+![Feature Graphic](AppScreenshots/ReadThisForMeFeature.png)
 
+## The Problem
+
+**54 million adults in the U.S.** read below a 6th-grade level. Many navigate daily life by asking others for help, memorizing routines, or avoiding situations entirely. Existing solutions require accounts, track usage, or have complex interfaces that assume literacy.
+
+## The Solution
+
+1. **Point** — Open the app and point your camera at any text (menus, forms, mail, medicine labels, signs)
+2. **Tap** — Tap the speaker button to hear the words read aloud in a natural voice
+3. **Understand** — Tap the brain button to hear a simplified explanation of complex text
+
+No accounts. No settings. No learning curve.
+
+## Privacy First
+
+This app is built on a simple principle: **what you read is nobody's business.**
+
+- No accounts or sign-ups required
+- Photos are processed in real-time and immediately discarded
+- No tracking, no history, no analytics on what you read
+- Everything is forgotten after it speaks
+
+See our [Privacy Policy](https://mtornga.github.io/PostLiterateApp/).
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Natural Voice** | High-quality Google Cloud Text-to-Speech with Neural2-J voice |
+| **Adjustable Speed** | 0.5x to 2.0x playback speed to match your pace |
+| **Explain Mode** | AI simplifies complex text into plain language (short, medium, or long) |
+| **Icon-Based UI** | No reading required to use the app |
+| **Audio Help** | Tap ? to hear instructions spoken aloud |
+| **Multi-Language** | Works with any language supported by Google Vision |
+
+## Technical Architecture
+
+### Frontend (React Native + Expo)
+- **Framework**: Expo SDK 54 with React Native
+- **Camera**: expo-camera for real-time capture
+- **Audio**: expo-av for TTS playback with sentence-by-sentence prefetching
+- **Animations**: react-native-reanimated for pulsing speaker indicator
+- **Navigation**: React Navigation with bottom tabs
+
+### Backend (Firebase Cloud Functions)
+- `/ocr` — Google Cloud Vision API proxy for text recognition
+- `/tts` — Google Cloud Text-to-Speech with Neural2-J voice
+- `/explain` — Gemini 2.0 Flash for plain-language simplification
+
+## Screenshots
+
+<p align="center">
+  <img src="AppScreenshots/Screenshot_20251227-093233.png" width="200" alt="Scanning a patch">
+  <img src="AppScreenshots/Screenshot_20251227-093255.png" width="200" alt="Scanning a vitamin bottle">
+  <img src="AppScreenshots/Screenshot_20251227-093317.png" width="200" alt="Playback controls">
+  <img src="AppScreenshots/Screenshot_20251227-093412.png" width="200" alt="Explanation mode">
+</p>
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+
+- Expo CLI
+- Firebase project with Cloud Functions enabled
+- Google Cloud APIs: Vision, Text-to-Speech
+- Google AI (Gemini) API key
+
+### Installation
+
+1. Clone the repository
+   ```bash
+   git clone https://github.com/mtornga/PostLiterateApp.git
+   cd PostLiterateApp
+   ```
+
+2. Install dependencies
    ```bash
    npm install
    ```
 
-2. Start the app
+3. Configure environment variables
+   ```bash
+   cp .env.example .env
+   # Add your API keys
+   ```
 
+4. Start the development server
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+### Firebase Functions
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+Deploy the backend functions:
 ```bash
-npm run reset-project
+cd functions
+npm install
+firebase deploy --only functions
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Current Status
 
-## Learn more
+**Beta testing on Google Play.** Looking for testers to help meet Google's closed testing requirements before public release.
 
-To learn more about developing your project with Expo, look at the following resources:
+### Want to help test?
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Visit [marktornga.com/portfolio/readthisforme](https://marktornga.com/portfolio/readthisforme) to join the beta!
 
-## Join the community
+## What's Next
 
-Join our community of developers creating universal apps.
+- [ ] iOS release via App Store
+- [ ] Offline mode for basic OCR
+- [ ] Document scanning with multi-page support
+- [ ] Integration with accessibility services
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## License
+
+This project is licensed under the MIT License.
+
+## Contact
+
+- **Email**: readformeapp@gmail.com
+- **Website**: [marktornga.com](https://marktornga.com)
+- **GitHub**: [@mtornga](https://github.com/mtornga)
+
+---
+
+*Technology should help people live more independently — without requiring them to hand over their data or their dignity.*
