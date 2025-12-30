@@ -25,13 +25,18 @@ async function checkAndIncrementUsage(): Promise<void> {
 }
 
 export async function extractText(imageUri: string): Promise<string> {
+    const totalStart = Date.now();
     try {
         await checkAndIncrementUsage();
 
+        const encodeStart = Date.now();
         const base64 = await FileSystem.readAsStringAsync(imageUri, {
             encoding: 'base64',
         });
+        const encodeDuration = Date.now() - encodeStart;
+        console.log(`[TIMING] OCR base64 encode: ${encodeDuration}ms`);
 
+        const fetchStart = Date.now();
         const response = await fetch(`${BASE_URL}/ocr`, {
             method: 'POST',
             headers: {
@@ -46,6 +51,10 @@ export async function extractText(imageUri: string): Promise<string> {
         }
 
         const data = await response.json();
+        const fetchDuration = Date.now() - fetchStart;
+        const totalDuration = Date.now() - totalStart;
+        console.log(`[TIMING] OCR network: ${fetchDuration}ms, total: ${totalDuration}ms`);
+
         return data.text || "";
     } catch (error) {
         console.error('OCR Error:', error);
@@ -56,9 +65,11 @@ export async function extractText(imageUri: string): Promise<string> {
 export type ExplanationLength = 'short' | 'medium' | 'long';
 
 export async function explainText(text: string, length: ExplanationLength = 'medium'): Promise<string> {
+    const totalStart = Date.now();
     try {
         await checkAndIncrementUsage();
 
+        const fetchStart = Date.now();
         const response = await fetch(`${BASE_URL}/explain`, {
             method: 'POST',
             headers: {
@@ -73,6 +84,10 @@ export async function explainText(text: string, length: ExplanationLength = 'med
         }
 
         const data = await response.json();
+        const fetchDuration = Date.now() - fetchStart;
+        const totalDuration = Date.now() - totalStart;
+        console.log(`[TIMING] LLM network: ${fetchDuration}ms, total: ${totalDuration}ms`);
+
         return data.text || "";
     } catch (error) {
         console.error('Explain Error:', error);

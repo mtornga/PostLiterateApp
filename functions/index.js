@@ -20,8 +20,16 @@ const ttsClient = new textToSpeech.TextToSpeechClient();
 /**
  * Proxies an image to Google Cloud Vision API for text detection.
  * Expects a POST request with JSON body: { "image": "BASE64_STRING" }
+ * Or GET request for warmup pings.
  */
 exports.ocr = onRequest({ cors: true }, async (req, res) => {
+    // Handle warmup ping (GET or warmup flag)
+    if (req.method === 'GET' || req.body?.warmup) {
+        logger.info("OCR Warmup ping", { ready: !!client });
+        res.status(200).send({ service: "ocr", ready: !!client });
+        return;
+    }
+
     logger.info("OCR Request Started", {
         method: req.method,
         userAgent: req.get('user-agent')
@@ -41,7 +49,11 @@ exports.ocr = onRequest({ cors: true }, async (req, res) => {
             features: [{ type: "TEXT_DETECTION" }],
         };
 
+        const apiStart = Date.now();
         const [result] = await client.annotateImage(request);
+        const apiDuration = Date.now() - apiStart;
+        logger.info("[TIMING] Vision API", { durationMs: apiDuration });
+
         const detections = result.textAnnotations;
 
         if (!detections || detections.length === 0) {
@@ -66,8 +78,18 @@ exports.ocr = onRequest({ cors: true }, async (req, res) => {
 /**
  * Explains a given text simply using Gemini.
  * Expects a POST request with JSON body: { "text": "STRING", "length": "short" | "medium" | "long" }
+ * Or GET request for warmup pings.
  */
 exports.explain = onRequest({ cors: true }, async (req, res) => {
+    // Handle warmup ping (GET or warmup flag)
+    if (req.method === 'GET' || req.body?.warmup) {
+        const apiKey = geminiKey.value();
+        const ready = !!apiKey && apiKey !== "dummy_key";
+        logger.info("Explain Warmup ping", { ready });
+        res.status(200).send({ service: "explain", ready });
+        return;
+    }
+
     logger.info("Explain Request Started", { method: req.method });
 
     try {
@@ -111,9 +133,12 @@ exports.explain = onRequest({ cors: true }, async (req, res) => {
         ${text}`;
 
         logger.info("Calling Gemini API", { model: modelId, textLength: text.length });
+        const apiStart = Date.now();
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const explanation = response.text();
+        const apiDuration = Date.now() - apiStart;
+        logger.info("[TIMING] Gemini API", { durationMs: apiDuration });
 
         logger.info("Explain Completed Successfully", {
             explanationLength: explanation.length
@@ -138,8 +163,16 @@ exports.explain = onRequest({ cors: true }, async (req, res) => {
  * Converts text to speech using Google Cloud TTS.
  * Expects a POST request with JSON body: { "text": "STRING" }
  * Returns base64-encoded MP3 audio.
+ * Or GET request for warmup pings.
  */
 exports.tts = onRequest({ cors: true }, async (req, res) => {
+    // Handle warmup ping (GET or warmup flag)
+    if (req.method === 'GET' || req.body?.warmup) {
+        logger.info("TTS Warmup ping", { ready: !!ttsClient });
+        res.status(200).send({ service: "tts", ready: !!ttsClient });
+        return;
+    }
+
     logger.info("TTS Request Started", { method: req.method });
 
     try {
@@ -166,7 +199,10 @@ exports.tts = onRequest({ cors: true }, async (req, res) => {
         };
 
         logger.info("Calling Google Cloud TTS", { textLength: text.length });
+        const apiStart = Date.now();
         const [response] = await ttsClient.synthesizeSpeech(request);
+        const apiDuration = Date.now() - apiStart;
+        logger.info("[TIMING] TTS API", { durationMs: apiDuration });
 
         logger.info("TTS Completed Successfully", {
             audioBytes: response.audioContent.length
@@ -181,3 +217,23 @@ exports.tts = onRequest({ cors: true }, async (req, res) => {
         res.status(500).send({ error: error.message });
     }
 });
+
+/**
+ * Health check endpoint to keep functions warm.
+ * Called by Cloud Scheduler every 5 minutes.
+ */
+exports.health = onRequest({ cors: true }, async (req, res) => {
+    // Touch each client to ensure they stay initialized
+    const status = {
+        ok: true,
+        timestamp: new Date().toISOString(),
+        services: {
+            vision: !!client,
+            tts: !!ttsClient,
+            gemini: !!geminiKey.value()
+        }
+    };
+    logger.info("Health check", status);
+    res.status(200).send(status);
+});
+

@@ -28,6 +28,7 @@ import {
     speakNoText,
     stop
 } from '../services/speech';
+import { GlowingButton } from '@/components/GlowingButton';
 
 const { width } = Dimensions.get('window');
 
@@ -209,7 +210,9 @@ export default function App() {
     }
 
     async function processImage(action: 'read' | 'explain') {
-        console.log(`Processing image for action: ${action}`);
+        const pipelineStart = Date.now();
+        console.log(`[TIMING] ===== PIPELINE START: ${action} =====`);
+
         if (cameraRef.current && mode === 'idle') {
             let photoUri: string | null = null;
             try {
@@ -217,16 +220,22 @@ export default function App() {
                 await stop();
 
                 console.log('Taking picture...');
+                const captureStart = Date.now();
                 const photo = await cameraRef.current.takePictureAsync({
                     quality: 0.5,
                 });
+                const captureDuration = Date.now() - captureStart;
+                console.log(`[TIMING] Camera capture: ${captureDuration}ms`);
 
                 if (photo?.uri) {
                     photoUri = photo.uri;
-                    console.log('Picture taken:', photo.uri);
                     setCapturedImage(photo.uri);
+
+                    const ocrStart = Date.now();
                     const text = await extractText(photo.uri);
-                    console.log('Text extracted:', text?.substring(0, 50));
+                    const ocrDuration = Date.now() - ocrStart;
+                    console.log(`[TIMING] OCR total (frontend): ${ocrDuration}ms`);
+                    console.log(`[TIMING] Pipeline to OCR complete: ${Date.now() - pipelineStart}ms`);
 
                     if (!text || text.trim().length === 0) {
                         await speakNoText();
@@ -247,21 +256,31 @@ export default function App() {
                         setActiveText(text);
                         setIsExplainMode(false);
                         setOriginalOcrText('');
+                        console.log(`[TIMING] Starting TTS for READ (${text.length} chars)`);
                         await speak(text);
                     } else {
-                        console.log('Calling explain service...');
+                        console.log(`[TIMING] Starting LLM explain...`);
                         setIsExplainMode(true);
                         setOriginalOcrText(text); // Store for re-explain with different length
+
+                        const llmStart = Date.now();
                         const explanation = await explainText(text, explanationLength);
-                        console.log('Explanation received:', explanation?.substring(0, 50));
+                        const llmDuration = Date.now() - llmStart;
+                        console.log(`[TIMING] LLM total (frontend): ${llmDuration}ms`);
+                        console.log(`[TIMING] Pipeline to LLM complete: ${Date.now() - pipelineStart}ms`);
+
                         setActiveText(explanation);
+                        console.log(`[TIMING] Starting TTS for EXPLAIN (${explanation.length} chars)`);
                         await speak(explanation);
                     }
+
+                    console.log(`[TIMING] ===== PIPELINE COMPLETE: ${Date.now() - pipelineStart}ms =====`);
                 } else {
                     console.warn('No photo URI returned');
                 }
             } catch (e: any) {
                 console.error('Failed to process:', e);
+                console.log(`[TIMING] ===== PIPELINE ERROR at ${Date.now() - pipelineStart}ms =====`);
                 if (e.message === 'DAILY_LIMIT_REACHED') {
                     await speak("You have used all your requests for today. Please come back tomorrow.");
                 } else {
@@ -444,7 +463,7 @@ export default function App() {
                         {/* Transport Buttons */}
                         <View style={styles.transportRow}>
                             <TouchableOpacity style={styles.transportButton} onPress={handleStop}>
-                                <MaterialCommunityIcons name="stop" size={32} color="#fff" />
+                                <MaterialCommunityIcons name="camera" size={32} color="#fff" />
                             </TouchableOpacity>
 
                             <TouchableOpacity style={styles.mainTransportButton} onPress={togglePlayback}>
@@ -477,31 +496,21 @@ export default function App() {
                     </View>
                 ) : (
                     <View style={styles.buttonRow}>
-                        {/* Read Button - Camera with text/speech icon */}
-                        <TouchableOpacity
-                            style={[styles.actionButton, mode === 'reading' && styles.activeButton]}
+                        {/* Read Button - with glowing pulse animation */}
+                        <GlowingButton
+                            icon="clipboard-text-search"
                             onPress={() => processImage('read')}
                             disabled={mode !== 'idle'}
-                        >
-                            {mode === 'reading' ? (
-                                <ActivityIndicator size="large" color="#4ecca3" />
-                            ) : (
-                                <MaterialCommunityIcons name="clipboard-text-search" size={56} color="#fff" />
-                            )}
-                        </TouchableOpacity>
+                            isLoading={mode === 'reading'}
+                        />
 
-                        {/* Explain Button - Brain icon */}
-                        <TouchableOpacity
-                            style={[styles.actionButton, mode === 'explaining' && styles.activeButton]}
+                        {/* Explain Button - with glowing pulse animation */}
+                        <GlowingButton
+                            icon="brain"
                             onPress={() => processImage('explain')}
                             disabled={mode !== 'idle'}
-                        >
-                            {mode === 'explaining' ? (
-                                <ActivityIndicator size="large" color="#4ecca3" />
-                            ) : (
-                                <MaterialCommunityIcons name="brain" size={56} color="#fff" />
-                            )}
-                        </TouchableOpacity>
+                            isLoading={mode === 'explaining'}
+                        />
                     </View>
                 )}
 

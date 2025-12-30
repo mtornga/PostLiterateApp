@@ -16,6 +16,7 @@ let playbackRate = 1.0;
 let onProgressCallback: ((index: number, total: number) => void) | null = null;
 let onDoneCallback: (() => void) | null = null;
 let isLoadingSegments = false;
+let speakStartTime = 0; // For timing first audio playback
 
 /**
  * Splits text into sentences for per-sentence TTS.
@@ -39,6 +40,7 @@ function segmentText(text: string): string[] {
  * Fetches TTS audio for a single sentence from the backend.
  */
 async function fetchTTSAudio(text: string): Promise<string> {
+    const fetchStart = Date.now();
     const response = await fetch(`${BASE_URL}/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,14 +52,19 @@ async function fetchTTSAudio(text: string): Promise<string> {
     }
 
     const data = await response.json();
+    const fetchDuration = Date.now() - fetchStart;
+    console.log(`[TIMING] TTS fetch: ${fetchDuration}ms (${text.length} chars)`);
 
     // Save base64 audio to a temp file
+    const writeStart = Date.now();
     const filename = `tts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp3`;
     const uri = `${FileSystem.cacheDirectory}${filename}`;
 
     await FileSystem.writeAsStringAsync(uri, data.audio, {
         encoding: FileSystem.EncodingType.Base64,
     });
+    const writeDuration = Date.now() - writeStart;
+    console.log(`[TIMING] TTS file write: ${writeDuration}ms`);
 
     return uri;
 }
@@ -71,15 +78,20 @@ async function loadSegment(index: number): Promise<void> {
     const segment = segments[index];
     if (segment.sound) return; // Already loaded
 
+    const loadStart = Date.now();
     try {
         const uri = await fetchTTSAudio(segment.text);
         segment.uri = uri;
 
+        const createStart = Date.now();
         const { sound } = await Audio.Sound.createAsync(
             { uri },
             { shouldPlay: false, rate: playbackRate, shouldCorrectPitch: true }
         );
         segment.sound = sound;
+        const createDuration = Date.now() - createStart;
+        const totalDuration = Date.now() - loadStart;
+        console.log(`[TIMING] Segment ${index} load: ${totalDuration}ms (Audio.Sound.createAsync: ${createDuration}ms)`);
     } catch (error) {
         console.error(`Failed to load segment ${index}:`, error);
         throw error;
@@ -134,6 +146,12 @@ async function playNextSegment(): Promise<void> {
 
         await sound.setRateAsync(playbackRate, true);
         await sound.playAsync();
+
+        // Log time to first audio if this is segment 0
+        if (currentSegmentIndex === 0 && speakStartTime > 0) {
+            const timeToFirstAudio = Date.now() - speakStartTime;
+            console.log(`[TIMING] *** TIME TO FIRST AUDIO: ${timeToFirstAudio}ms ***`);
+        }
     } catch (error) {
         console.error('Playback error:', error);
         currentSegmentIndex++;
@@ -181,6 +199,9 @@ export function setPlaybackRate(rate: number) {
 }
 
 export async function speak(text: string): Promise<void> {
+    speakStartTime = Date.now();
+    console.log(`[TIMING] speak() called with ${text.length} chars`);
+
     await stop();
 
     // Configure audio mode for playback
@@ -192,6 +213,7 @@ export async function speak(text: string): Promise<void> {
     });
 
     const textSegments = segmentText(text);
+    console.log(`[TIMING] Text segmented into ${textSegments.length} sentences`);
 
     if (textSegments.length === 0) {
         onDoneCallback?.();
