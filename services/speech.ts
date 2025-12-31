@@ -1,11 +1,14 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
+import type { EventSubscription } from 'expo-modules-core';
 import * as FileSystem from 'expo-file-system/legacy';
 
 const BASE_URL = 'https://us-central1-post-literate-app.cloudfunctions.net';
 
 interface AudioSegment {
     text: string;
-    sound: Audio.Sound | null;
+    sound: AudioPlayer | null;
+    statusSubscription?: EventSubscription | null;
     uri: string | null;
 }
 
@@ -17,6 +20,13 @@ let onProgressCallback: ((index: number, total: number) => void) | null = null;
 let onDoneCallback: (() => void) | null = null;
 let isLoadingSegments = false;
 let speakStartTime = 0; // For timing first audio playback
+let firstAudioLogged = false;
+const loadingSegments = new Map<number, Promise<void>>();
+const logTiming = (...args: unknown[]) => {
+    if (__DEV__) {
+        console.log(...args);
+    }
+};
 
 /**
  * Splits text into sentences for per-sentence TTS.
@@ -53,7 +63,7 @@ async function fetchTTSAudio(text: string): Promise<string> {
 
     const data = await response.json();
     const fetchDuration = Date.now() - fetchStart;
-    console.log(`[TIMING] TTS fetch: ${fetchDuration}ms (${text.length} chars)`);
+    logTiming(`[TIMING] TTS fetch: ${fetchDuration}ms (${text.length} chars)`);
 
     // Save base64 audio to a temp file
     const writeStart = Date.now();
@@ -64,7 +74,7 @@ async function fetchTTSAudio(text: string): Promise<string> {
         encoding: FileSystem.EncodingType.Base64,
     });
     const writeDuration = Date.now() - writeStart;
-    console.log(`[TIMING] TTS file write: ${writeDuration}ms`);
+    logTiming(`[TIMING] TTS file write: ${writeDuration}ms`);
 
     return uri;
 }
@@ -78,23 +88,49 @@ async function loadSegment(index: number): Promise<void> {
     const segment = segments[index];
     if (segment.sound) return; // Already loaded
 
-    const loadStart = Date.now();
-    try {
-        const uri = await fetchTTSAudio(segment.text);
-        segment.uri = uri;
+    const existingLoad = loadingSegments.get(index);
+    if (existingLoad) {
+        await existingLoad;
+        return;
+    }
 
-        const createStart = Date.now();
-        const { sound } = await Audio.Sound.createAsync(
-            { uri },
-            { shouldPlay: false, rate: playbackRate, shouldCorrectPitch: true }
-        );
-        segment.sound = sound;
-        const createDuration = Date.now() - createStart;
-        const totalDuration = Date.now() - loadStart;
-        console.log(`[TIMING] Segment ${index} load: ${totalDuration}ms (Audio.Sound.createAsync: ${createDuration}ms)`);
-    } catch (error) {
-        console.error(`Failed to load segment ${index}:`, error);
-        throw error;
+    const loadPromise = (async () => {
+        const loadStart = Date.now();
+        try {
+            const uri = await fetchTTSAudio(segment.text);
+            segment.uri = uri;
+
+            const createStart = Date.now();
+            const sound = createAudioPlayer({ uri }, { updateInterval: 200 });
+            sound.shouldCorrectPitch = true;
+            sound.setPlaybackRate(playbackRate, 'medium');
+            segment.sound = sound;
+            segment.statusSubscription = sound.addListener('playbackStatusUpdate', (status) => {
+                if (!firstAudioLogged && index === 0 && speakStartTime > 0 && status.playing) {
+                    firstAudioLogged = true;
+                    const timeToFirstAudio = Date.now() - speakStartTime;
+                    logTiming(`[TIMING] *** TIME TO FIRST AUDIO: ${timeToFirstAudio}ms ***`);
+                }
+
+                if (status.isLoaded && status.didJustFinish && !isPaused && currentSegmentIndex === index) {
+                    currentSegmentIndex++;
+                    playNextSegment();
+                }
+            });
+            const createDuration = Date.now() - createStart;
+            const totalDuration = Date.now() - loadStart;
+            logTiming(`[TIMING] Segment ${index} load: ${totalDuration}ms (AudioPlayer create: ${createDuration}ms)`);
+        } catch (error) {
+            console.error(`Failed to load segment ${index}:`, error);
+            throw error;
+        }
+    })();
+
+    loadingSegments.set(index, loadPromise);
+    try {
+        await loadPromise;
+    } finally {
+        loadingSegments.delete(index);
     }
 }
 
@@ -136,22 +172,8 @@ async function playNextSegment(): Promise<void> {
     try {
         const sound = segment.sound!;
 
-        // Set up completion handler
-        sound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded && status.didJustFinish && !isPaused) {
-                currentSegmentIndex++;
-                playNextSegment();
-            }
-        });
-
-        await sound.setRateAsync(playbackRate, true);
-        await sound.playAsync();
-
-        // Log time to first audio if this is segment 0
-        if (currentSegmentIndex === 0 && speakStartTime > 0) {
-            const timeToFirstAudio = Date.now() - speakStartTime;
-            console.log(`[TIMING] *** TIME TO FIRST AUDIO: ${timeToFirstAudio}ms ***`);
-        }
+        sound.setPlaybackRate(playbackRate, 'medium');
+        sound.play();
     } catch (error) {
         console.error('Playback error:', error);
         currentSegmentIndex++;
@@ -165,8 +187,10 @@ async function playNextSegment(): Promise<void> {
 async function cleanup(): Promise<void> {
     for (const segment of segments) {
         if (segment.sound) {
+            segment.statusSubscription?.remove();
+            segment.statusSubscription = null;
             try {
-                await segment.sound.unloadAsync();
+                segment.sound.remove();
             } catch {}
         }
         if (segment.uri) {
@@ -175,6 +199,7 @@ async function cleanup(): Promise<void> {
             } catch {}
         }
     }
+    loadingSegments.clear();
     segments = [];
 }
 
@@ -193,27 +218,29 @@ export function setPlaybackRate(rate: number) {
     if (currentSegmentIndex >= 0 && currentSegmentIndex < segments.length) {
         const sound = segments[currentSegmentIndex].sound;
         if (sound) {
-            sound.setRateAsync(rate, true).catch(() => {});
+            sound.setPlaybackRate(rate, 'medium');
         }
     }
 }
 
 export async function speak(text: string): Promise<void> {
     speakStartTime = Date.now();
-    console.log(`[TIMING] speak() called with ${text.length} chars`);
+    firstAudioLogged = false;
+    logTiming(`[TIMING] speak() called with ${text.length} chars`);
 
     await stop();
 
     // Configure audio mode for playback
-    await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+    await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        shouldRouteThroughEarpiece: false,
+        interruptionMode: 'duckOthers',
     });
 
     const textSegments = segmentText(text);
-    console.log(`[TIMING] Text segmented into ${textSegments.length} sentences`);
+    logTiming(`[TIMING] Text segmented into ${textSegments.length} sentences`);
 
     if (textSegments.length === 0) {
         onDoneCallback?.();
@@ -256,7 +283,7 @@ export async function pause(): Promise<void> {
     if (currentSegmentIndex >= 0 && currentSegmentIndex < segments.length) {
         const sound = segments[currentSegmentIndex].sound;
         if (sound) {
-            await sound.pauseAsync();
+            sound.pause();
         }
     }
 }
@@ -269,7 +296,7 @@ export async function resume(): Promise<void> {
     if (currentSegmentIndex < segments.length) {
         const sound = segments[currentSegmentIndex].sound;
         if (sound) {
-            await sound.playAsync();
+            sound.play();
         } else {
             // Sound was unloaded, try to reload and play
             playNextSegment();
@@ -286,7 +313,8 @@ export async function stop(): Promise<void> {
     for (const segment of segments) {
         if (segment.sound) {
             try {
-                await segment.sound.stopAsync();
+                segment.sound.pause();
+                segment.sound.seekTo(0).catch(() => {});
             } catch {}
         }
     }
@@ -306,7 +334,8 @@ export async function seek(progress: number): Promise<void> {
     if (currentSegmentIndex >= 0 && currentSegmentIndex < segments.length) {
         const sound = segments[currentSegmentIndex].sound;
         if (sound) {
-            await sound.stopAsync();
+            sound.pause();
+            sound.seekTo(0).catch(() => {});
         }
     }
 

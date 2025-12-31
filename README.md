@@ -45,7 +45,7 @@ See our [Privacy Policy](https://mtornga.github.io/PostLiterateApp/).
 ### Frontend (React Native + Expo)
 - **Framework**: Expo SDK 54 with React Native
 - **Camera**: expo-camera for real-time capture
-- **Audio**: expo-av for TTS playback with sentence-by-sentence prefetching
+- **Audio**: expo-audio for TTS playback with sentence-by-sentence prefetching
 - **Animations**: react-native-reanimated for pulsing speaker indicator
 - **Navigation**: React Navigation with bottom tabs
 

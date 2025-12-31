@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     cancelAnimation,
     useAnimatedStyle,
@@ -11,13 +11,17 @@ import Animated, {
 } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
-const BUTTON_SIZE = width * 0.35;
+const BUTTON_SIZE = width * 0.32;
 
 interface GlowingButtonProps {
     icon: keyof typeof MaterialCommunityIcons.glyphMap;
     onPress: () => void;
     disabled?: boolean;
     isLoading?: boolean;
+    label?: string;
+    accessibilityLabel?: string;
+    accessibilityHint?: string;
+    accessibilityRole?: 'button';
 }
 
 export function GlowingButton({
@@ -25,6 +29,10 @@ export function GlowingButton({
     onPress,
     disabled = false,
     isLoading = false,
+    label,
+    accessibilityLabel,
+    accessibilityHint,
+    accessibilityRole = 'button',
 }: GlowingButtonProps) {
     // Animation values for the glow effect
     const glowOpacity = useSharedValue(0.3);
@@ -79,11 +87,17 @@ export function GlowingButton({
                 onPress={onPress}
                 disabled={disabled}
                 activeOpacity={0.7}
+                accessibilityRole={accessibilityRole}
+                accessibilityLabel={accessibilityLabel}
+                accessibilityHint={accessibilityHint}
             >
                 {isLoading ? (
                     <ActivityIndicator size="large" color="#4ecca3" />
                 ) : (
-                    <MaterialCommunityIcons name={icon} size={56} color="#fff" />
+                    <View style={styles.content}>
+                        <MaterialCommunityIcons name={icon} size={50} color="#fff" />
+                        {label ? <Text style={styles.label}>{label}</Text> : null}
+                    </View>
                 )}
             </TouchableOpacity>
         </View>
@@ -101,7 +115,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: BUTTON_SIZE + 16,
         height: BUTTON_SIZE + 16,
-        borderRadius: 29,
+        borderRadius: 22,
         backgroundColor: 'transparent',
         borderWidth: 2,
         borderColor: '#4ecca3',
@@ -115,7 +129,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: BUTTON_SIZE + 6,
         height: BUTTON_SIZE + 6,
-        borderRadius: 27,
+        borderRadius: 20,
         backgroundColor: 'transparent',
         borderWidth: 1.5,
         borderColor: 'rgba(78, 204, 163, 0.5)',
@@ -129,11 +143,23 @@ const styles = StyleSheet.create({
         width: BUTTON_SIZE,
         height: BUTTON_SIZE,
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: 25,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    content: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    label: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     buttonActive: {
         backgroundColor: 'rgba(78, 204, 163, 0.2)',

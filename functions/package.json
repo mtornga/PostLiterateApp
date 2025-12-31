@@ -6,13 +6,15 @@
         "shell": "firebase functions:shell",
         "start": "npm run shell",
         "deploy": "firebase deploy --only functions",
-        "logs": "firebase functions:log"
+        "logs": "firebase functions:log",
+        "report:llm": "node scripts/llm-usage-report.js"
     },
     "engines": {
         "node": "22"
     },
     "main": "index.js",
     "dependencies": {
+        "@google-cloud/logging": "^11.2.1",
         "@google-cloud/text-to-speech": "^5.5.0",
         "@google-cloud/vision": "^5.3.4",
         "@google/generative-ai": "^0.24.1",

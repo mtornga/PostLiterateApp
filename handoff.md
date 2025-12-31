@@ -66,7 +66,7 @@ Cloud Scheduler (Warm-up)
 - **Visual Feedback**: Animated speaker icon during audio playback
 
 ## Key Dependencies
-- `expo-av`: Audio playback for Cloud TTS **[DEPRECATED - migrate to expo-audio before SDK 54]**
+- `expo-audio`: Audio playback for Cloud TTS
 - `expo-camera`: Image capture
 - `expo-file-system/legacy`: File operations (use legacy API)
 - `@react-native-community/slider`: Playback controls
@@ -116,8 +116,7 @@ Cloud Scheduler (Warm-up)
    - Consider when traffic is consistent and scheduler isn't enough
 
 ### Technical Debt
-1. **Migrate expo-av to expo-audio**: Required before upgrading to SDK 54
-   - `expo-av` deprecated, will be removed
+1. **expo-audio migration completed**: Ready for SDK 54 upgrade
    - Replace with `expo-audio` and `expo-video` packages
 
 ## Performance Summary
